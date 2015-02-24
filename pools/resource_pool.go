@@ -39,6 +39,7 @@ type ResourcePool struct {
 	// stats
 	waitCount sync2.AtomicInt64
 	waitTime  sync2.AtomicDuration
+	inUse     sync2.AtomicInt64
 }
 
 type resourceWrapper struct {
@@ -134,6 +135,7 @@ func (rp *ResourcePool) get(wait bool, timeout time.Duration) (resource Resource
 			rp.resources <- resourceWrapper{}
 		}
 	}
+	rp.inUse.Add(1)
 	return wrapper.resource, err
 }
 
@@ -143,6 +145,7 @@ func (rp *ResourcePool) get(wait bool, timeout time.Duration) (resource Resource
 // The will eventually cause a new resource to be created in its place.
 func (rp *ResourcePool) Put(resource Resource) {
 	var wrapper resourceWrapper
+	rp.inUse.Add(-1)
 	if resource != nil {
 		wrapper = resourceWrapper{resource, time.Now()}
 	}
@@ -151,6 +154,7 @@ func (rp *ResourcePool) Put(resource Resource) {
 	default:
 		panic(errors.New("attempt to Put into a full ResourcePool"))
 	}
+
 }
 
 // SetCapacity changes the capacity of the pool.
@@ -238,4 +242,8 @@ func (rp *ResourcePool) WaitTime() time.Duration {
 
 func (rp *ResourcePool) IdleTimeout() time.Duration {
 	return rp.idleTimeout.Get()
+}
+
+func (rp *ResourcePool) InUse() int64 {
+	return rp.inUse.Get()
 }
